@@ -1,1 +1,51 @@
+name: Gulf Jobs Agent
 
+on:
+  schedule:
+    - cron: '0 5 * * *'   # 8:00 صباحاً بتوقيت الرياض (UTC+3)
+    - cron: '0 15 * * *'  # 6:00 مساءً بتوقيت الرياض (UTC+3)
+  workflow_dispatch:       # تشغيل يدوي عند الحاجة
+
+jobs:
+  run-agent:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Restore seen jobs cache
+        uses: actions/cache@v4
+        with:
+          path: data/seen_jobs.json
+          key: seen-jobs-${{ github.run_id }}
+          restore-keys: seen-jobs-
+
+      - name: Run Jobs Agent
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHANNEL: ${{ secrets.TELEGRAM_CHANNEL }}
+        run: python main.py
+
+      - name: Save logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-logs-${{ github.run_number }}
+          path: logs/
+          retention-days: 7
